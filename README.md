@@ -1,6 +1,6 @@
 # Game sentiment checker l30d
 
-An online-data research skill for sense-checking upcoming and recently released game launches. It produces a full report covering demand, purchase intent, momentum, sentiment, comparable releases, markdown risk, confidence, and an upfront-buy posture.
+An online-data research skill for sense-checking one upcoming or recently released game at a time. It produces a self-contained HTML report covering demand, purchase intent, momentum, sentiment, comparable releases, markdown risk, confidence, and an upfront-buy posture.
 
 It is designed for game-key inventory decisions. It does not claim to know exact reseller sales, private Steam wishlist counts, or regional key demand.
 
@@ -37,7 +37,13 @@ See `references/scoring-model.md` for the categories and missing-data rules.
 
 ## Report
 
-The required full report structure is in `references/report-template.md`. The skill should use that template for Standard and Deep runs.
+The required full report structure is in `references/report-template.md`. Every run produces all sections in a formatted HTML file. The renderer is self-contained and escapes research text before inserting it into HTML.
+
+```powershell
+python scripts/render_report.py --input report.json --output research-output\example-sense-check.html
+```
+
+Only one game is accepted per report. If you need to assess several games, run the skill once for each title.
 
 ## Optional integrations
 

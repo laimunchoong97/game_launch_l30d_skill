@@ -1,4 +1,6 @@
-# Game Release Sense-Check
+# Game Release Sense-Check - HTML Content Template
+
+This is the content contract for the self-contained HTML output. The final report must render every section below with inline styling, source links where available, and explicit unavailable/partial-source labels. One report covers one game only.
 
 ## 1. Decision Snapshot
 
