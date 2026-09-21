@@ -1,0 +1,23 @@
+{
+  "skill_name": "game-sentiment-checker-l30d",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Sense-check the upcoming release of a new Steam game using only public online data. Give me the full report and an upfront-buy posture for game keys.",
+      "expected_output": "Uses the complete report template, separates demand from purchase intent and risk, cites public sources, and avoids inventing exact reseller sales.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Research the last 30 days of discussion around a newly launched game and tell me whether the hype is converting into launch-buy intent or mostly sale-wait interest.",
+      "expected_output": "Runs recent community research, performs aspect-based sentiment and purchase-intent analysis, reports the hype-to-intent gap, and includes source coverage.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Compare three upcoming Steam releases and rank them for a controlled initial key purchase. I have no internal sales data.",
+      "expected_output": "Uses comparable public evidence, confidence-aware scoring, markdown risk, and a ranked buy posture without pretending to know the user's channel share.",
+      "files": []
+    }
+  ]
+}
