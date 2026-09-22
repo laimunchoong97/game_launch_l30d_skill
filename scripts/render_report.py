@@ -100,6 +100,22 @@ def source_list(items: Any) -> str:
     return "<ul>" + "".join(output) + "</ul>"
 
 
+def community_quotes(items: Any) -> str:
+    if not isinstance(items, list) or not items:
+        return '<p class="muted">No usable item-level community quotes were collected.</p>'
+    output = []
+    for item in items:
+        if not isinstance(item, dict):
+            output.append(f"<li>{esc(item)}</li>")
+            continue
+        source = link(item.get("source") or "Community source", item.get("url"))
+        author = esc(item.get("author") or item.get("commenter") or "Anonymous")
+        engagement = esc(item.get("engagement") or item.get("upvotes") or "Unavailable")
+        quote = esc(item.get("quote") or item.get("text"))
+        output.append(f'<li><strong>{source}</strong> · {author} · {engagement}<br><q>{quote}</q></li>')
+    return "<ul class=\"quotes\">" + "".join(output) + "</ul>"
+
+
 def section(title: str, body: str, anchor: str) -> str:
     return f'<section id="{esc(anchor)}"><h2>{esc(title)}</h2>{body}</section>'
 
@@ -155,8 +171,14 @@ def render_report(report: dict[str, Any]) -> str:
 
     reception = report.get("reception") or report.get("sentiment") or {}
     aspects = reception.get("aspects") or []
+    community = report.get("community_voice") or {}
     reception_body = f"""
-    <div class="three-col">{key_value_grid({'Overall sentiment': reception.get('overall_sentiment'), 'Sentiment trend': reception.get('trend'), 'Sentiment confidence': reception.get('confidence')})}</div>
+    <div class="three-col">{key_value_grid({'Overall sentiment': reception.get('overall_sentiment'), 'Sentiment trend': reception.get('trend'), 'Sentiment confidence': reception.get('confidence'), 'Community evidence status': community.get('status'), 'Community sentiment': community.get('sentiment')})}</div>
+    <h3>Community voice from last30days</h3>
+    <p><strong>What players are excited about:</strong> {esc(community.get('excited_about'))}</p>
+    <p><strong>What players object to:</strong> {esc(community.get('object_to'))}</p>
+    <p><strong>Launch-buy intent:</strong> {esc(community.get('launch_buy_intent'))}</p>
+    {community_quotes(community.get('quotes'))}
     <div class="table-wrap"><table><thead><tr><th>Aspect</th><th>Sentiment</th><th>Frequency</th><th>Purchase impact</th></tr></thead><tbody>{rows(aspects, ['aspect', 'sentiment', 'frequency', 'purchase_impact'])}</tbody></table></div>
     <h3>Important concerns</h3>{value_list(reception.get('important_concerns'))}
     """
@@ -237,7 +259,7 @@ h2 {{ font:700 25px/1.2 Georgia,serif; margin:0 0 20px; }} h3 {{ font:700 17px/1
 .snapshot-grid {{ margin-top:18px; }} .kv-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }} .kv {{ border:1px solid var(--line); border-radius:10px; padding:11px 13px; background:#fbfcfc; }} .kv span {{ display:block; text-transform:capitalize; color:var(--muted); font:11px Arial,sans-serif; margin-bottom:4px; }} .kv strong {{ font:600 14px/1.35 Arial,sans-serif; }}
 .recommendation,.callout {{ border-left:5px solid var(--accent); background:var(--accent-soft); padding:16px 18px; border-radius:0 12px 12px 0; }} .recommendation strong,.callout strong {{ font:700 20px/1.2 Arial,sans-serif; }}
 .two-col {{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }} .three-col .kv-grid {{ grid-template-columns:repeat(3,1fr); }} .table-wrap {{ overflow-x:auto; }} table {{ width:100%; border-collapse:collapse; font:14px/1.45 Arial,sans-serif; }} th,td {{ text-align:left; border-bottom:1px solid var(--line); padding:11px 9px; vertical-align:top; }} th {{ color:#53636d; font-size:12px; text-transform:uppercase; letter-spacing:.05em; }} ul {{ padding-left:22px; }} a {{ color:#0f766e; text-underline-offset:3px; }} footer {{ color:var(--muted); text-align:center; font:12px Arial,sans-serif; padding:20px; }}
-@media (max-width:800px) {{ .score-grid {{ grid-template-columns:repeat(3,1fr); }} header {{ padding:30px 24px; }} }} @media (max-width:560px) {{ .page {{ padding:16px 10px 40px; }} section {{ padding:20px 16px; }} .score-grid {{ grid-template-columns:repeat(2,1fr); }} .two-col,.three-col .kv-grid {{ grid-template-columns:1fr; }} }}
+q {{ color:#31434c; font-style:italic; }} .quotes li {{ margin-bottom:14px; }} @media (max-width:800px) {{ .score-grid {{ grid-template-columns:repeat(3,1fr); }} header {{ padding:30px 24px; }} }} @media (max-width:560px) {{ .page {{ padding:16px 10px 40px; }} section {{ padding:20px 16px; }} .score-grid {{ grid-template-columns:repeat(2,1fr); }} .two-col,.three-col .kv-grid {{ grid-template-columns:1fr; }} }}
 </style>
 </head>
 <body><main class="page">

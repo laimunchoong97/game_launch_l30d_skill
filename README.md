@@ -280,6 +280,8 @@ The current repository directly includes:
 
 The external web-search providers, Twitch, YouTube API, X, TikTok, Instagram, and broader `last30days` connectors are optional runtime integrations. They are consumed by the host environment or the installed `last30days` engine rather than bundled as hard-coded secret-bearing clients.
 
+For a Complete Standard or Deep report, the installed `last30days` engine is not optional in practice: it is the required community-evidence layer. Critic reviews, Steam metadata, and general web pages cannot substitute for player/community evidence. If the engine or all usable community lanes are unavailable, the HTML report must be labeled provisional and must not claim to have gauged what players are saying.
+
 No integration can reliably expose:
 
 - Your store's game-key sales

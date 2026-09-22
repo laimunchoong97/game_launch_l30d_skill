@@ -18,6 +18,7 @@ Produce a complete, evidence-led sense-check for exactly one upcoming or recentl
 - Distinguish attention from purchase intent. Explicit launch-buy, preorder, sale-wait, patch-wait, refund, and avoidance signals matter more than generic praise.
 - Cite every material finding with its source and capture date. Do not claim a source was quiet when it was unavailable, rate-limited, or incomplete.
 - Use ranges and buy postures where public data cannot support a defensible unit estimate.
+- Treat actual `last30days` community evidence as a required gate for a Complete Standard or Deep report. Critic reviews and store metadata are not substitutes for what players are saying.
 - Keep the final HTML self-contained: inline CSS, no external fonts, no external JavaScript, and no unescaped research text.
 
 ## Modes
@@ -34,7 +35,7 @@ Use Standard by default. Quick still produces the full HTML report but leaves mo
 
 1. Run `scripts/steam_public.py` with a Steam AppID or title. It collects public app metadata, price, review summary, recent review summary, and current players. Treat failures as source-status events.
 2. Search SteamDB public pages for followers, follower momentum, price history, release-state changes, player context, packages, and editions. SteamDB is a third-party context source, not official sales data.
-3. Use the existing `last30days` skill/engine when installed for the 30-day community pulse. Generate a named-entity plan and use Reddit, YouTube, X, and web lanes according to their availability. If `last30days` is unavailable, use the configured web-search providers and clearly mark the reduced coverage.
+3. Run the existing `last30days` skill/engine when installed for the 30-day community pulse. Use the engine's `--auto-resolve` path when host WebSearch is unavailable, and target gaming communities such as the game's dedicated subreddit, `Games`, `pcgaming`, `Steam`, and the relevant genre community. Read its raw evidence and source-status sections; do not copy its raw clusters into the report. If the engine is unavailable, the report must be labeled **Community evidence not collected** and cannot be presented as a complete Standard or Deep report.
 4. Search for publisher-confirmed sales, investor reports, launch milestones, creator coverage, reputable reviews, and comparable releases.
 5. Normalize the evidence, deduplicate repeated items, classify sentiment and purchase intent, then score.
 
@@ -91,6 +92,12 @@ Classify public items by:
 
 Report the hype-to-intent gap: high awareness or praise with weak launch-buy intent is a preload warning. Track direction across 30 days, 7 days, 72 hours, and 24 hours when available. Flag review bursts, review bombing, copied wording, free-weekend effects, and influencer spikes instead of treating them as ordinary reception.
 
+### Community evidence gate
+
+For a Complete Standard or Deep report, include at least one usable player/community source from the `last30days` run, preferably Reddit comments or game-specific discussions. Include at least two verbatim, attributed community comments when available, with source links and engagement. Summarize what players are excited about, what they object to, whether they intend to buy at launch, and which competing releases or price concerns may divert demand.
+
+If Reddit, X, YouTube, TikTok, and Instagram all fail or return no usable item-level evidence, keep the HTML report provisional. Set `community_evidence_status` to `unavailable` or `partial`, set the overall posture to `Provisional - community evidence incomplete`, and do not claim that the report has gauged player reception. Professional critic sentiment must be labeled separately from community sentiment.
+
 ## Required full HTML report
 
 Read `references/report-template.md` and use it in full. Do not replace it with a short summary. Every mode produces the same complete HTML section structure; Quick mode may contain more unavailable fields. Render the normalized report data with `scripts/render_report.py` and return the generated `.html` file path. Include:
@@ -114,6 +121,7 @@ The HTML must contain:
 
 - A clear title and data-capture timestamp.
 - Score cards for demand, purchase intent, momentum, reception, market/markdown risk, and confidence.
+- A visible community-evidence status with a player/community summary and attributed quotes when available.
 - All twelve sections in `references/report-template.md`.
 - Source links beside material findings where URLs are available.
 - Visible unavailable/partial-source notes.

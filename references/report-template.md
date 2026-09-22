@@ -113,7 +113,26 @@ Meaning:
 Overall sentiment: [Positive / Mixed / Negative]
 Sentiment trend: [Improving / Stable / Deteriorating]
 Sentiment confidence: [Low / Medium / High]
+Community evidence status: [Verified / Partial / Unavailable]
+Community sentiment: [Positive / Mixed / Negative / Unavailable]
 ```
+
+### Community voice from last30days
+
+```text
+What players are excited about:
+[Summary grounded in the last30days evidence.]
+
+What players object to:
+[Summary grounded in the last30days evidence.]
+
+Launch-buy intent:
+[Summary of preorder, launch-buy, review-wait, sale-wait, patch-wait, refund, or avoid signals.]
+```
+
+| Community source | Commenter | Engagement | Quote |
+|---|---|---:|---|
+| [Reddit/X/YouTube/etc.] | [Name] | [Value] | [Verbatim quote] |
 
 | Aspect | Sentiment | Frequency | Purchase impact |
 |---|---|---|---|
