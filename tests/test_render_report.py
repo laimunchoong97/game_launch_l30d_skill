@@ -23,7 +23,7 @@ class RenderReportTests(unittest.TestCase):
         rendered = render_report(report)
         self.assertIn("&lt;Example Game&gt;", rendered)
         self.assertNotIn("<Example Game>", rendered)
-        for heading in ("Decision Snapshot", "Executive Recommendation", "Score Breakdown", "Evidence and Coverage"):
+        for heading in ("The decision", "Community pulse", "Score dashboard", "Evidence coverage"):
             self.assertIn(heading, rendered)
         self.assertIn("<!doctype html>", rendered)
 

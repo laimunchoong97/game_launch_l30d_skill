@@ -38,32 +38,53 @@ def link(label: Any, url: Any) -> str:
     return f'<a href="{safe}" target="_blank" rel="noopener noreferrer">{esc(label)}</a>'
 
 
-def value_list(values: Any) -> str:
+def badge(value: Any, kind: str = "neutral") -> str:
+    return f'<span class="badge {esc(kind)}">{esc(value)}</span>'
+
+
+def numeric_value(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, min(100.0, number))
+
+
+def score_label(value: Any, risk: bool = False) -> str:
+    number = numeric_value(value)
+    if number is None:
+        return "Unavailable"
+    if risk:
+        return "Low" if number < 35 else "Manageable" if number < 50 else "Elevated" if number < 65 else "High" if number < 80 else "Severe"
+    return "Weak" if number < 35 else "Fragile" if number < 50 else "Uncertain" if number < 65 else "Promising" if number < 80 else "Strong"
+
+
+def score_card(label: str, value: Any, modifier: str = "", risk: bool = False) -> str:
+    number = numeric_value(value)
+    if number is None:
+        return f'<div class="metric {esc(modifier)}"><div class="metric-top"><span>{esc(label)}</span><strong>{esc(value)}</strong></div><div class="metric-track"><i class="unknown"></i></div><small>Coverage unavailable</small></div>'
+    status = "low" if number < 50 else "mid" if number < 80 else "high"
+    label_text = score_label(number, risk)
+    return f'<div class="metric {esc(modifier)} {status}"><div class="metric-top"><span>{esc(label)}</span><strong>{int(number) if number.is_integer() else number}</strong></div><div class="metric-track"><i style="width:{number:.1f}%"></i></div><small>{esc(label_text)}{" - higher is worse" if risk else ""}</small></div>'
+
+
+def value_list(values: Any, ordered: bool = False) -> str:
     if not values:
         return '<p class="muted">Unavailable</p>'
     if not isinstance(values, list):
         values = [values]
-    return "<ul>" + "".join(f"<li>{esc(item)}</li>" for item in values) + "</ul>"
+    tag = "ol" if ordered else "ul"
+    return f"<{tag}>" + "".join(f"<li>{esc(item)}</li>" for item in values) + f"</{tag}>"
 
 
-def key_value_grid(values: Any) -> str:
+def key_value_grid(values: Any, compact: bool = False) -> str:
     if not isinstance(values, dict) or not values:
         return '<p class="muted">Unavailable</p>'
     cells = []
     for key, value in values.items():
-        cells.append(f'<div class="kv"><span>{esc(key.replace("_", " ").title())}</span><strong>{esc(value)}</strong></div>')
-    return '<div class="kv-grid">' + "".join(cells) + "</div>"
-
-
-def score_card(label: str, value: Any, modifier: str = "") -> str:
-    displayed = esc(value)
-    numeric = ""
-    try:
-        number = float(value)
-        numeric = "high" if number >= 80 else "mid" if number >= 50 else "low"
-    except (TypeError, ValueError):
-        numeric = "neutral"
-    return f'<div class="score-card {numeric} {modifier}"><span>{esc(label)}</span><strong>{displayed}</strong></div>'
+        cells.append(f'<div class="fact"><span>{esc(str(key).replace("_", " ").title())}</span><strong>{esc(value)}</strong></div>')
+    class_name = "fact-grid compact" if compact else "fact-grid"
+    return f'<div class="{class_name}">' + "".join(cells) + "</div>"
 
 
 def rows(items: Any, columns: list[str]) -> str:
@@ -84,6 +105,12 @@ def rows(items: Any, columns: list[str]) -> str:
     return "".join(output)
 
 
+def table(items: Any, columns: list[tuple[str, str]]) -> str:
+    keys = [key for key, _ in columns]
+    heads = "".join(f"<th>{esc(label)}</th>" for _, label in columns)
+    return f'<div class="table-wrap"><table><thead><tr>{heads}</tr></thead><tbody>{rows(items, keys)}</tbody></table></div>'
+
+
 def source_list(items: Any) -> str:
     if not isinstance(items, list) or not items:
         return '<p class="muted">Unavailable</p>'
@@ -97,7 +124,7 @@ def source_list(items: Any) -> str:
             output.append(f"<li>{link(label, item.get('url'))}: {esc(finding)}{suffix}</li>")
         else:
             output.append(f"<li>{esc(item)}</li>")
-    return "<ul>" + "".join(output) + "</ul>"
+    return '<ul class="source-list">' + "".join(output) + "</ul>"
 
 
 def community_quotes(items: Any) -> str:
@@ -112,12 +139,12 @@ def community_quotes(items: Any) -> str:
         author = esc(item.get("author") or item.get("commenter") or "Anonymous")
         engagement = esc(item.get("engagement") or item.get("upvotes") or "Unavailable")
         quote = esc(item.get("quote") or item.get("text"))
-        output.append(f'<li><strong>{source}</strong> · {author} · {engagement}<br><q>{quote}</q></li>')
-    return "<ul class=\"quotes\">" + "".join(output) + "</ul>"
+        output.append(f'<article class="quote-card"><div class="quote-meta"><strong>{source}</strong><span>{author}</span><span>{engagement}</span></div><q>{quote}</q></article>')
+    return '<div class="quote-grid">' + "".join(output) + "</div>"
 
 
-def section(title: str, body: str, anchor: str) -> str:
-    return f'<section id="{esc(anchor)}"><h2>{esc(title)}</h2>{body}</section>'
+def section(title: str, kicker: str, body: str, anchor: str, extra: str = "") -> str:
+    return f'<section id="{esc(anchor)}" class="report-section {esc(extra)}"><div class="section-heading"><span>{esc(kicker)}</span><h2>{esc(title)}</h2></div>{body}</section>'
 
 
 def render_report(report: dict[str, Any]) -> str:
@@ -126,69 +153,78 @@ def render_report(report: dict[str, Any]) -> str:
     recommendation = report.get("recommendation") or {}
     game = snapshot.get("game") or report.get("game") or "Game release sense-check"
     captured = snapshot.get("data_captured") or report.get("data_captured") or datetime.now(timezone.utc).isoformat()
+    phase = snapshot.get("release_phase") or "Release phase unavailable"
+    community = report.get("community_voice") or {}
+    evidence = report.get("demand_evidence") or {}
 
-    cards = "".join(
+    score_cards = "".join(
         [
             score_card("Demand potential", scores.get("demand_potential")),
             score_card("Purchase intent", scores.get("purchase_intent")),
             score_card("Launch momentum", scores.get("launch_momentum")),
             score_card("Reception health", scores.get("reception_health")),
-            score_card("Market/markdown risk", scores.get("market_markdown_risk"), "risk"),
+            score_card("Market / markdown risk", scores.get("market_markdown_risk"), "risk", risk=True),
             score_card("Evidence confidence", scores.get("evidence_confidence", "Unavailable"), "confidence"),
         ]
     )
 
-    snapshot_body = f"""
-    <div class="hero-meta">{esc(snapshot.get('release_phase'))} <span>·</span> Captured {esc(captured)}</div>
-    <div class="score-grid">{cards}</div>
-    <div class="snapshot-grid">{key_value_grid({k: v for k, v in snapshot.items() if k not in {'game', 'data_captured', 'release_phase'}})}</div>
+    snapshot_facts = {k: v for k, v in snapshot.items() if k not in {"game", "data_captured", "release_phase"}}
+    decision_body = f"""
+    <div class="decision-layout">
+      <div class="decision-main">
+        <div class="decision-label">Recommended posture</div>
+        <h2>{esc(recommendation.get('posture') or scores.get('overall_posture'))}</h2>
+        <p>{esc(recommendation.get('summary'))}</p>
+      </div>
+      <div class="decision-reason"><span>Why this matters</span><strong>{esc(recommendation.get('primary_reason'))}</strong><em>Main risk: {esc(recommendation.get('main_risk'))}</em></div>
+    </div>
+    <div class="trigger-strip"><span>Recheck trigger</span><strong>{esc(recommendation.get('change_trigger'))}</strong></div>
     """
 
-    recommendation_body = f"""
-    <div class="recommendation"><strong>{esc(recommendation.get('posture') or scores.get('overall_posture'))}</strong>
-    <p>{esc(recommendation.get('summary'))}</p></div>
-    <div class="two-col"><div><h3>Primary reason</h3><p>{esc(recommendation.get('primary_reason'))}</p></div>
-    <div><h3>Main risk</h3><p>{esc(recommendation.get('main_risk'))}</p></div></div>
-    <h3>What would change the recommendation</h3><p>{esc(recommendation.get('change_trigger'))}</p>
+    signal_body = f"""
+    <div class="signal-grid">
+      <div class="signal-panel positive"><div class="panel-label">Supports demand</div>{value_list(evidence.get('strongest_signals'))}</div>
+      <div class="signal-panel caution"><div class="panel-label">Reasons to stay controlled</div>{value_list(evidence.get('weakest_signals'))}</div>
+    </div>
+    """
+
+    community_summary = f"""
+    <div class="community-header">
+      <div><div class="panel-label">Community pulse</div><h2>{esc(community.get('sentiment'))}</h2><p>{esc(community.get('status'))}</p></div>
+      <div class="community-facts">{key_value_grid({'Launch-buy intent': community.get('launch_buy_intent'), 'Hype-to-intent gap': (report.get('purchase_intent') or {}).get('hype_to_intent_gap'), 'Evidence window': snapshot.get('research_window')}, compact=True)}</div>
+    </div>
+    <div class="community-reading"><div><span>Players are excited about</span><p>{esc(community.get('excited_about'))}</p></div><div><span>Players are objecting to</span><p>{esc(community.get('object_to'))}</p></div></div>
+    {community_quotes(community.get('quotes'))}
     """
 
     breakdown = report.get("score_breakdown") or []
-    score_table = f'<div class="table-wrap"><table><thead><tr><th>Score</th><th>Result</th><th>Logic</th></tr></thead><tbody>{rows(breakdown, ["name", "score", "logic"])}</tbody></table></div>'
+    score_table = table(breakdown, [("name", "Score"), ("score", "Result"), ("logic", "What the evidence means")])
 
-    evidence = report.get("demand_evidence") or {}
     demand_body = f"""
-    <h3>Steam and SteamDB signals</h3>{key_value_grid(evidence.get('steamdb_signals') or evidence.get('steam_signals'))}
-    <h3>Attention and audience signals</h3>{key_value_grid(evidence.get('attention_signals'))}
-    <h3>Strongest demand signals</h3>{value_list(evidence.get('strongest_signals'))}
-    <h3>Weakest or most uncertain signals</h3>{value_list(evidence.get('weakest_signals'))}
+    <div class="subsection"><div class="panel-label">Steam and SteamDB</div>{key_value_grid(evidence.get('steamdb_signals') or evidence.get('steam_signals'))}</div>
+    <div class="subsection"><div class="panel-label">Attention and audience</div>{key_value_grid(evidence.get('attention_signals'))}</div>
     """
 
     intent = report.get("purchase_intent") or {}
     intent_body = f"""
     {key_value_grid(intent.get('mix'))}
-    <div class="callout"><strong>Hype-to-intent gap: {esc(intent.get('hype_to_intent_gap'))}</strong><p>{esc(intent.get('meaning'))}</p></div>
+    <div class="intent-callout"><div class="panel-label">Hype-to-intent gap: {esc(intent.get('hype_to_intent_gap'))}</div><p>{esc(intent.get('meaning'))}</p></div>
     """
 
     reception = report.get("reception") or report.get("sentiment") or {}
     aspects = reception.get("aspects") or []
-    community = report.get("community_voice") or {}
     reception_body = f"""
-    <div class="three-col">{key_value_grid({'Overall sentiment': reception.get('overall_sentiment'), 'Sentiment trend': reception.get('trend'), 'Sentiment confidence': reception.get('confidence'), 'Community evidence status': community.get('status'), 'Community sentiment': community.get('sentiment')})}</div>
-    <h3>Community voice from last30days</h3>
-    <p><strong>What players are excited about:</strong> {esc(community.get('excited_about'))}</p>
-    <p><strong>What players object to:</strong> {esc(community.get('object_to'))}</p>
-    <p><strong>Launch-buy intent:</strong> {esc(community.get('launch_buy_intent'))}</p>
-    {community_quotes(community.get('quotes'))}
-    <div class="table-wrap"><table><thead><tr><th>Aspect</th><th>Sentiment</th><th>Frequency</th><th>Purchase impact</th></tr></thead><tbody>{rows(aspects, ['aspect', 'sentiment', 'frequency', 'purchase_impact'])}</tbody></table></div>
+    <div class="reception-split"><div class="reception-card critic"><div class="panel-label">Professional reception</div><p>{esc(reception.get('overall_sentiment'))}</p><strong>{esc(reception.get('confidence'))}</strong></div><div class="reception-card community"><div class="panel-label">Player / community reception</div><p>{esc(community.get('sentiment'))}</p><strong>{esc(community.get('status'))}</strong></div></div>
+    <div class="subsection"><div class="panel-label">Aspect-level read</div>{table(aspects, [("aspect", "Aspect"), ("sentiment", "Sentiment"), ("frequency", "Frequency"), ("purchase_impact", "Purchase impact")])}</div>
     <h3>Important concerns</h3>{value_list(reception.get('important_concerns'))}
     """
 
     comparables = report.get("comparables") or {}
     comparable_body = f"""
     <p><strong>Selection criteria:</strong> {esc(comparables.get('selection_criteria'))}</p>
-    <div class="table-wrap"><table><thead><tr><th>Comparable</th><th>Why comparable</th><th>Launch evidence</th><th>Outcome</th></tr></thead><tbody>{rows(comparables.get('items'), ['name', 'why_comparable', 'launch_evidence', 'outcome'])}</tbody></table></div>
-    {key_value_grid(comparables.get('demand_range'))}
-    <p><strong>Important caveat:</strong> {esc(comparables.get('caveat'))}</p>
+    {table(comparables.get('items'), [("name", "Comparable"), ("why_comparable", "Why it matches"), ("launch_evidence", "Public evidence"), ("outcome", "Read-through")])}
+    <div class="range-grid">{key_value_grid(comparables.get('demand_range'))}</div>
+    <p class="caveat"><strong>Important caveat:</strong> {esc(comparables.get('caveat'))}</p>
     """
 
     price = report.get("price_risk") or {}
@@ -196,47 +232,44 @@ def render_report(report: dict[str, Any]) -> str:
 
     sales = report.get("sales_player_evidence") or {}
     sales_body = f"""
-    <h3>Confirmed public sales</h3>{source_list(sales.get('confirmed_sales'))}
-    <h3>Third-party estimates</h3>{source_list(sales.get('estimates'))}
-    <h3>Player evidence</h3>{key_value_grid(sales.get('player_evidence'))}
+    <div class="two-col"><div><div class="panel-label">Confirmed public sales</div>{source_list(sales.get('confirmed_sales'))}</div><div><div class="panel-label">Third-party estimates</div>{source_list(sales.get('estimates'))}</div></div>
+    <div class="subsection"><div class="panel-label">Player evidence</div>{key_value_grid(sales.get('player_evidence'))}</div>
     """
 
     inventory = report.get("inventory") or {}
     inventory_body = f"""
-    <div class="recommendation"><strong>{esc(inventory.get('posture'))}</strong><p>{esc(inventory.get('allocation'))}</p></div>
-    <p><strong>Public-data basis:</strong> {esc(inventory.get('public_data_basis'))}</p>
-    <h3>Assumptions</h3>{value_list(inventory.get('assumptions'))}
+    <div class="action-card"><div class="action-title">{esc(inventory.get('posture'))}</div><p>{esc(inventory.get('allocation'))}</p></div>
+    <div class="subsection"><div class="panel-label">Public-data basis</div><p>{esc(inventory.get('public_data_basis'))}</p></div>
+    <div class="subsection"><div class="panel-label">Assumptions</div>{value_list(inventory.get('assumptions'))}</div>
     """
 
     signals = report.get("reorder_stop") or {}
     signals_body = f"""
-    <div class="two-col"><div><h3>Increase allocation if</h3>{value_list(signals.get('increase_if'))}</div>
-    <div><h3>Reduce or stop buying if</h3>{value_list(signals.get('reduce_or_stop_if'))}</div></div>
+    <div class="two-col"><div class="signal-panel positive"><div class="panel-label">Increase allocation if</div>{value_list(signals.get('increase_if'))}</div><div class="signal-panel caution"><div class="panel-label">Reduce or stop buying if</div>{value_list(signals.get('reduce_or_stop_if'))}</div></div>
     """
 
     coverage = report.get("coverage") or {}
     evidence_body = f"""
-    <h3>Strong evidence</h3>{source_list(coverage.get('strong'))}
-    <h3>Moderate evidence</h3>{source_list(coverage.get('moderate'))}
-    <h3>Weak or proxy evidence</h3>{source_list(coverage.get('weak'))}
-    <h3>Unavailable</h3>{value_list(coverage.get('unavailable'))}
-    <h3>Source status</h3><div class="table-wrap"><table><thead><tr><th>Source</th><th>Status</th><th>Note</th></tr></thead><tbody>{rows(coverage.get('source_status'), ['source', 'status', 'note'])}</tbody></table></div>
+    <div class="two-col"><div><div class="panel-label">Strong evidence</div>{source_list(coverage.get('strong'))}</div><div><div class="panel-label">Moderate evidence</div>{source_list(coverage.get('moderate'))}</div></div>
+    <div class="two-col"><div><div class="panel-label">Weak or proxy evidence</div>{source_list(coverage.get('weak'))}</div><div><div class="panel-label">Unavailable</div>{value_list(coverage.get('unavailable'))}</div></div>
+    {table(coverage.get('source_status'), [("source", "Source"), ("status", "Status"), ("note", "Coverage note")])}
     """
 
     sections = "".join(
         [
-            section("1. Decision Snapshot", snapshot_body, "snapshot"),
-            section("2. Executive Recommendation", recommendation_body, "recommendation"),
-            section("3. Score Breakdown", score_table, "scores"),
-            section("4. Demand Evidence", demand_body, "demand"),
-            section("5. Purchase-Intent Analysis", intent_body, "intent"),
-            section("6. Sentiment and Reception Analysis", reception_body, "reception"),
-            section("7. Comparable Games", comparable_body, "comparables"),
-            section("8. Price and Markdown Risk", price_body, "price-risk"),
-            section("9. Public Sales and Player Evidence", sales_body, "sales"),
-            section("10. Inventory Recommendation", inventory_body, "inventory"),
-            section("11. Reorder and Stop Signals", signals_body, "signals"),
-            section("12. Evidence and Coverage", evidence_body, "coverage"),
+            section("The decision", "01 / Decision", decision_body, "decision", "decision-section"),
+            section("What is driving the call", "02 / Signals", signal_body, "signals", "signal-section"),
+            section("Community pulse", "03 / What players are saying", community_summary, "community", "community-section"),
+            section("Score dashboard", "04 / Scoring", f'<div class="score-table">{score_table}</div>', "scores"),
+            section("Demand evidence", "05 / Demand", demand_body, "demand"),
+            section("Purchase intent", "06 / Conversion", intent_body, "intent"),
+            section("Reception analysis", "07 / Reception", reception_body, "reception"),
+            section("Comparable releases", "08 / Benchmarks", comparable_body, "comparables"),
+            section("Price and markdown risk", "09 / Risk", price_body, "price-risk"),
+            section("Public sales and player evidence", "10 / Market evidence", sales_body, "sales"),
+            section("Inventory action plan", "11 / Action", inventory_body, "inventory", "action-section"),
+            section("Reorder and stop signals", "12 / Monitoring", signals_body, "monitoring"),
+            section("Evidence coverage", "13 / Appendix", evidence_body, "coverage", "appendix-section"),
         ]
     )
 
@@ -247,25 +280,30 @@ def render_report(report: dict[str, Any]) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(game)} - Game Release Sense-Check</title>
 <style>
-:root {{ --ink:#16212b; --muted:#687581; --line:#dbe3e8; --paper:#f5f7f6; --card:#fff; --accent:#0f766e; --accent-soft:#d9f2ed; --warn:#b45309; --warn-soft:#fff0d5; --shadow:0 14px 40px rgba(22,33,43,.08); }}
-* {{ box-sizing:border-box; }} body {{ margin:0; background:linear-gradient(135deg,#eef5f2,#f9f5ed 55%,#edf2f7); color:var(--ink); font:15px/1.65 Georgia,serif; }}
-.page {{ max-width:1120px; margin:0 auto; padding:32px 20px 64px; }}
-header {{ background:linear-gradient(135deg,#102a2a,#175f5d); color:#fff; padding:42px; border-radius:24px; box-shadow:var(--shadow); margin-bottom:24px; }}
-header h1 {{ font:700 clamp(28px,5vw,52px)/1.05 Georgia,serif; margin:0 0 12px; letter-spacing:-.03em; }} header p {{ margin:0; color:#d8efea; }}
-section {{ background:rgba(255,255,255,.9); border:1px solid rgba(219,227,232,.9); border-radius:18px; padding:26px; margin:18px 0; box-shadow:0 8px 28px rgba(22,33,43,.05); }}
-h2 {{ font:700 25px/1.2 Georgia,serif; margin:0 0 20px; }} h3 {{ font:700 17px/1.25 Georgia,serif; margin:22px 0 8px; }} p {{ margin:8px 0 14px; }} .muted, small {{ color:var(--muted); }}
-.hero-meta {{ color:#d8efea; margin-bottom:22px; }} .hero-meta span {{ padding:0 7px; opacity:.6; }} .score-grid {{ display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }}
-.score-card {{ background:#f2fbf8; border:1px solid #cbe8e0; border-radius:13px; padding:14px; min-height:105px; display:flex; flex-direction:column; justify-content:space-between; }} .score-card span {{ font:12px/1.3 Arial,sans-serif; color:#4f6c68; }} .score-card strong {{ font:700 26px/1 Arial,sans-serif; }} .score-card.low {{ background:#fff5ed; border-color:#f5ceb0; }} .score-card.risk {{ background:var(--warn-soft); border-color:#f1d39b; }} .score-card.confidence {{ background:#eef2ff; border-color:#d6ddff; }}
-.snapshot-grid {{ margin-top:18px; }} .kv-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }} .kv {{ border:1px solid var(--line); border-radius:10px; padding:11px 13px; background:#fbfcfc; }} .kv span {{ display:block; text-transform:capitalize; color:var(--muted); font:11px Arial,sans-serif; margin-bottom:4px; }} .kv strong {{ font:600 14px/1.35 Arial,sans-serif; }}
-.recommendation,.callout {{ border-left:5px solid var(--accent); background:var(--accent-soft); padding:16px 18px; border-radius:0 12px 12px 0; }} .recommendation strong,.callout strong {{ font:700 20px/1.2 Arial,sans-serif; }}
-.two-col {{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }} .three-col .kv-grid {{ grid-template-columns:repeat(3,1fr); }} .table-wrap {{ overflow-x:auto; }} table {{ width:100%; border-collapse:collapse; font:14px/1.45 Arial,sans-serif; }} th,td {{ text-align:left; border-bottom:1px solid var(--line); padding:11px 9px; vertical-align:top; }} th {{ color:#53636d; font-size:12px; text-transform:uppercase; letter-spacing:.05em; }} ul {{ padding-left:22px; }} a {{ color:#0f766e; text-underline-offset:3px; }} footer {{ color:var(--muted); text-align:center; font:12px Arial,sans-serif; padding:20px; }}
-q {{ color:#31434c; font-style:italic; }} .quotes li {{ margin-bottom:14px; }} @media (max-width:800px) {{ .score-grid {{ grid-template-columns:repeat(3,1fr); }} header {{ padding:30px 24px; }} }} @media (max-width:560px) {{ .page {{ padding:16px 10px 40px; }} section {{ padding:20px 16px; }} .score-grid {{ grid-template-columns:repeat(2,1fr); }} .two-col,.three-col .kv-grid {{ grid-template-columns:1fr; }} }}
+:root {{ --ink:#1b2928; --muted:#667674; --line:#dbe5e0; --paper:#f5f1e8; --card:#fffdf8; --teal:#0f6b61; --teal-dark:#123b38; --teal-soft:#e1f1ec; --orange:#c76635; --orange-soft:#fff0e4; --blue:#426a82; --blue-soft:#eaf2f7; --shadow:0 18px 55px rgba(37,56,53,.09); }}
+* {{ box-sizing:border-box; }} html {{ scroll-behavior:smooth; }} body {{ margin:0; background:radial-gradient(circle at 8% 0%,#e3f0e9 0 23%,transparent 48%),linear-gradient(135deg,#f4efe4,#f7f5ef 52%,#e9f0ee); color:var(--ink); font:15px/1.65 "Avenir Next","Segoe UI",Arial,sans-serif; }}
+.page {{ max-width:1180px; margin:0 auto; padding:26px 22px 70px; }}
+header {{ position:relative; overflow:hidden; background:linear-gradient(125deg,#102e2d 0%,#155e58 58%,#286d69 100%); color:#fff; padding:44px 46px 42px; border-radius:28px; box-shadow:var(--shadow); }} header:after {{ content:""; position:absolute; width:390px; height:390px; right:-120px; top:-230px; border:1px solid rgba(255,255,255,.2); border-radius:50%; box-shadow:0 0 0 35px rgba(255,255,255,.04),0 0 0 70px rgba(255,255,255,.035); }}
+.eyebrow {{ position:relative; z-index:1; color:#b9dfd5; text-transform:uppercase; letter-spacing:.16em; font:700 11px/1.2 "Avenir Next","Segoe UI",Arial,sans-serif; }} header h1 {{ position:relative; z-index:1; max-width:800px; font:700 clamp(36px,6vw,68px)/.98 "Iowan Old Style",Palatino,Georgia,serif; margin:14px 0 18px; letter-spacing:-.045em; }} header p {{ position:relative; z-index:1; max-width:760px; margin:0; color:#d8eee8; font-size:16px; }} .header-meta {{ position:relative; z-index:1; display:flex; flex-wrap:wrap; gap:9px; margin-top:24px; }} .header-meta span {{ border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.09); border-radius:100px; padding:6px 11px; color:#e4f4ef; font-size:12px; }}
+.report-nav {{ position:sticky; z-index:5; top:10px; display:flex; gap:7px; overflow:auto; margin:17px 0 20px; padding:7px; border:1px solid rgba(219,229,224,.85); border-radius:100px; background:rgba(255,253,248,.86); backdrop-filter:blur(12px); box-shadow:0 8px 28px rgba(37,56,53,.07); }} .report-nav a {{ white-space:nowrap; color:var(--muted); text-decoration:none; padding:7px 12px; border-radius:100px; font-size:12px; font-weight:700; }} .report-nav a:hover {{ background:var(--teal-soft); color:var(--teal-dark); }}
+.report-section {{ margin:20px 0; padding:28px 30px; border:1px solid rgba(219,229,224,.9); border-radius:22px; background:rgba(255,253,248,.92); box-shadow:0 7px 32px rgba(37,56,53,.05); }} .section-heading {{ display:flex; align-items:baseline; gap:14px; margin-bottom:21px; }} .section-heading span,.panel-label,.decision-label {{ color:var(--teal); text-transform:uppercase; letter-spacing:.14em; font:800 10px/1.2 "Avenir Next","Segoe UI",Arial,sans-serif; }} h2 {{ margin:0; font:700 clamp(25px,3vw,34px)/1.05 "Iowan Old Style",Palatino,Georgia,serif; letter-spacing:-.03em; }} h3 {{ margin:23px 0 9px; font:800 15px/1.2 "Avenir Next","Segoe UI",Arial,sans-serif; }} p {{ margin:8px 0 15px; }} .muted,small {{ color:var(--muted); }}
+.decision-section {{ padding:0; border:0; background:transparent; box-shadow:none; }} .decision-section .section-heading {{ display:none; }} .decision-layout {{ display:grid; grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr); gap:18px; }} .decision-main,.decision-reason {{ border-radius:20px; padding:27px 30px; }} .decision-main {{ color:#fff; background:var(--teal-dark); }} .decision-main .decision-label {{ color:#a9d8cd; }} .decision-main h2 {{ margin:12px 0 12px; color:#fff; font-size:clamp(27px,4vw,42px); }} .decision-main p {{ color:#d8eee8; max-width:730px; }} .decision-reason {{ display:flex; flex-direction:column; justify-content:space-between; background:var(--orange-soft); border:1px solid #f0c5a5; }} .decision-reason span {{ color:var(--orange); text-transform:uppercase; letter-spacing:.13em; font-size:10px; font-weight:800; }} .decision-reason strong {{ margin:16px 0; font:700 17px/1.3 "Iowan Old Style",Palatino,Georgia,serif; }} .decision-reason em {{ color:#80503b; font-size:12px; font-style:normal; }} .trigger-strip {{ display:grid; grid-template-columns:145px 1fr; gap:18px; align-items:center; margin-top:12px; padding:15px 19px; border:1px solid var(--line); border-radius:14px; background:rgba(255,253,248,.78); }} .trigger-strip span {{ color:var(--muted); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; }} .trigger-strip strong {{ font-size:13px; }}
+.signal-grid,.two-col,.reception-split {{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }} .signal-panel {{ padding:20px 22px; border-radius:16px; }} .signal-panel.positive {{ background:var(--teal-soft); border:1px solid #bfdfd6; }} .signal-panel.caution {{ background:var(--orange-soft); border:1px solid #f0c5a5; }} .signal-panel ul,.signal-panel ol {{ margin-bottom:0; }} .signal-panel li {{ margin:7px 0; }}
+.community-section {{ background:linear-gradient(135deg,#f0f8f5,#fffdf8); border-color:#c7e2d9; }} .community-header {{ display:grid; grid-template-columns:1fr 1.4fr; gap:20px; align-items:end; }} .community-header h2 {{ margin:10px 0 5px; }} .community-header p {{ color:var(--muted); }} .community-facts .fact-grid {{ grid-template-columns:repeat(3,1fr); }} .community-reading {{ display:grid; grid-template-columns:1fr 1fr; gap:15px; margin:20px 0; }} .community-reading > div {{ padding:17px 18px; border-radius:14px; background:#fff; border:1px solid var(--line); }} .community-reading span {{ color:var(--teal); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; }} .quote-grid {{ display:grid; grid-template-columns:repeat(2,1fr); gap:13px; }} .quote-card {{ padding:18px; border:1px solid #c8ddd5; border-radius:15px; background:#fff; }} .quote-meta {{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; color:var(--muted); font-size:11px; }} .quote-meta span {{ padding:3px 7px; border-radius:100px; background:#edf5f1; }} .quote-card q {{ display:block; color:#273a38; font:italic 16px/1.45 "Iowan Old Style",Palatino,Georgia,serif; }}
+.score-grid {{ display:grid; grid-template-columns:repeat(6,1fr); gap:11px; }} .metric {{ min-height:122px; padding:16px; border:1px solid #c9e3da; border-radius:15px; background:#f4fbf8; }} .metric.risk {{ border-color:#f0c5a5; background:var(--orange-soft); }} .metric.confidence {{ border-color:#c8d9e7; background:var(--blue-soft); }} .metric-top {{ display:flex; align-items:start; justify-content:space-between; gap:8px; }} .metric-top span {{ color:#4d6965; font-size:11px; font-weight:800; line-height:1.25; }} .metric-top strong {{ color:var(--teal-dark); font:800 26px/1 "Avenir Next","Segoe UI",Arial,sans-serif; }} .metric.risk .metric-top strong {{ color:#9a4a26; }} .metric-track {{ height:7px; overflow:hidden; margin:22px 0 9px; border-radius:10px; background:#d9e8e2; }} .metric-track i {{ display:block; height:100%; border-radius:10px; background:linear-gradient(90deg,#62a99a,#0f6b61); }} .metric.risk .metric-track i {{ background:linear-gradient(90deg,#e0a15d,#c76635); }} .metric-track i.unknown {{ width:100%; background:repeating-linear-gradient(135deg,#ccd8d4 0 5px,#e4ebe8 5px 10px); }} .metric small {{ font-size:11px; }}
+.fact-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap:10px; }} .fact-grid.compact {{ grid-template-columns:repeat(3,1fr); }} .fact {{ min-width:0; padding:13px 14px; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.58); }} .fact span {{ display:block; margin-bottom:5px; color:var(--muted); font-size:10px; font-weight:800; line-height:1.2; text-transform:uppercase; letter-spacing:.08em; }} .fact strong {{ display:block; overflow-wrap:anywhere; font-size:13px; line-height:1.35; }} .subsection {{ margin-top:21px; }}
+.intent-callout {{ margin-top:19px; padding:18px 20px; border-left:4px solid var(--blue); border-radius:0 13px 13px 0; background:var(--blue-soft); }} .intent-callout .panel-label {{ color:var(--blue); }} .reception-card {{ padding:20px; border-radius:16px; border:1px solid var(--line); }} .reception-card.critic {{ background:#f6f2eb; }} .reception-card.community {{ background:var(--teal-soft); border-color:#c5e2d8; }} .reception-card p {{ font:700 19px/1.25 "Iowan Old Style",Palatino,Georgia,serif; }} .reception-card strong {{ color:var(--muted); font-size:12px; font-weight:600; }}
+.action-section {{ border-color:#e8c5a9; background:linear-gradient(135deg,#fff7ee,#fffdf8); }} .action-card {{ padding:22px 24px; border:1px solid #efc39f; border-radius:16px; background:var(--orange-soft); }} .action-title {{ color:#8f421f; font:800 24px/1.15 "Iowan Old Style",Palatino,Georgia,serif; }} .action-card p {{ margin-bottom:0; }} .range-grid {{ margin-top:18px; }} .caveat {{ padding:14px 16px; border-radius:12px; background:#f8f4eb; color:#5f6962; }}
+.table-wrap {{ overflow-x:auto; margin-top:12px; }} table {{ width:100%; border-collapse:collapse; font-size:13px; }} th,td {{ padding:13px 11px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }} th {{ color:var(--muted); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }} tr:last-child td {{ border-bottom:0; }} .source-list {{ padding-left:20px; }} .source-list li {{ margin:9px 0; }} a {{ color:var(--teal); text-underline-offset:3px; }} .badge {{ display:inline-block; padding:5px 9px; border-radius:100px; font-size:11px; font-weight:800; }} .badge.neutral {{ color:var(--teal-dark); background:var(--teal-soft); }}
+.appendix-section {{ background:#f0f2ed; }} footer {{ margin-top:24px; color:var(--muted); text-align:center; font-size:11px; }}
+@media (max-width:950px) {{ .score-grid {{ grid-template-columns:repeat(3,1fr); }} .decision-layout,.community-header {{ grid-template-columns:1fr; }} }} @media (max-width:680px) {{ .page {{ padding:14px 10px 45px; }} header {{ padding:31px 24px; border-radius:21px; }} .report-section {{ padding:22px 18px; border-radius:17px; }} .section-heading {{ display:block; }} .section-heading span {{ display:block; margin-bottom:8px; }} .signal-grid,.two-col,.reception-split,.community-reading,.quote-grid {{ grid-template-columns:1fr; }} .score-grid {{ grid-template-columns:repeat(2,1fr); }} .community-facts .fact-grid,.fact-grid.compact {{ grid-template-columns:1fr; }} .trigger-strip {{ grid-template-columns:1fr; gap:4px; }} .report-nav {{ border-radius:14px; }} }}
 </style>
 </head>
 <body><main class="page">
-<header><h1>{esc(game)}</h1><p>Game Release Sense-Check · Public-data market assessment · One game per report</p></header>
+<header><div class="eyebrow">Game sentiment checker l30d / one-game report</div><h1>{esc(game)}</h1><p>Public-data launch sense-check for game-key inventory decisions.</p><div class="header-meta"><span>{esc(phase)}</span><span>Steam AppID {esc(snapshot.get('steam_appid'))}</span><span>Captured {esc(captured)}</span></div></header>
+<nav class="report-nav" aria-label="Report navigation"><a href="#decision">Decision</a><a href="#community">Community</a><a href="#scores">Scores</a><a href="#reception">Reception</a><a href="#inventory">Inventory</a><a href="#coverage">Evidence</a></nav>
 {sections}
-<footer>Generated by Game sentiment checker l30d · Data captured {esc(captured)} · Public evidence only</footer>
+<footer>Generated by Game sentiment checker l30d · Public evidence only · Data captured {esc(captured)}</footer>
 </main></body></html>
 """
 
